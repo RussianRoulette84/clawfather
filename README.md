@@ -27,7 +27,7 @@ Why? So that you don't fuck up. From there, you are on your own my friend.
 # Install
 Run this in terminal:
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Jaroslav84/clawfather/master/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/RussianRoulette84/clawfather/master/install.sh)
 ```
 
 **Demo**

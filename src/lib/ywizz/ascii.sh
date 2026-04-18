@@ -38,7 +38,7 @@ draw_banner_frame() {
     local r="$RESET"
 
     local ver="${CLAWFATHER_VERSION:-v1.1}"
-    local footer_text="${ver} by: Jaroslav84"
+    local footer_text="${ver} by: Yaro"
     local footer_suffix=""
     if [ -n "${BANNER_ANIMATE_FRAME:-}" ] && [ ${#GENERATED_PALETTE[@]} -gt 0 ]; then
         local p_len=${#GENERATED_PALETTE[@]}
@@ -152,7 +152,7 @@ show_palette_debug() {
     local p=( "$@" )
     # Use generated names if available, else generic
     local names=("${GENERATED_NAMES[@]}")
-    
+
     printf "\n   ${accent_color}--- DYNAMIC COLOR PLATE (${#p[@]} STEPS) ---${RESET}\n"
     for (( i=0; i<${#p[@]}; i++ )); do
         printf "   [%2d] %b██%b  %s\n" "$i" "${p[$i]}" "$RESET" "${names[$i]}"
