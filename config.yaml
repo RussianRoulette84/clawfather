@@ -5,22 +5,13 @@ models:
   agents:
     general:
       primary: zai/glm-4.7
-      fallbacks:
-        - google/gemini-3-pro-preview
-        - google-antigravity/gemini-3-pro-high
-        - anthropic/claude-sonnet-4-5
+      fallbacks: []
     light:
       primary: zai/glm-4.7-flash
-      fallbacks:
-        - google/gemini-3-flash-preview
-        - google-antigravity/gemini-3-flash
-        - anthropic/claude-haiku-4-5
+      fallbacks: []
     heavy:
       primary: zai/glm-4.7
-      fallbacks:
-        - google/gemini-3-pro-preview
-        - google-antigravity/gemini-3-pro-high
-        - anthropic/claude-opus-4-5
+      fallbacks: []
 
 gateway:
   port: 18789
@@ -28,37 +19,41 @@ gateway:
   bridge_port: 18790
 
 workspace:
-  config_dir: ~/OpenClaw
-  workspace_dir: ~/OpenClaw/workspace
-  mirror_projects: true
-  projects_dir: ~/Projects
-  docker_projects_path: ~/.openclaw/workspace
-  docker_base: ~/.openclaw
-  docker_workspace: ~/.openclaw/workspace
+  config_dir:             ~/Projects/OpenClaw           # OpenClaw dir on host (config, logs, skills)
+  workspace_dir:          ~/Projects/OpenClaw/workspace # Agent working directory on host
+  mirror_projects:        true                          # Mount host projects into container; risky if sensitive data
+  projects_dir:           ~/Projects/ai                 # Host path to projects (when mirror_projects: true)
+  docker_projects_path:   ~/.openclaw/workspace/ai      # Path inside container where projects are mounted
+  docker_base:            ~/.openclaw                   # OpenClaw path inside container (config mount target)
+  docker_workspace:       ~/.openclaw/workspace         # Workspace path inside container
 
 docker:
-  image: alpine/openclaw:latest
-  user: node
-  network_mode: bridge
-  vol_mode: ""
-  service_manager: none
-  no_service: true
+  image:                  fourplayers/openclaw:latest  # Gateway image (fourplayers = root, alpine = node)
+  user:                   root                         # Container user; root for fourplayers, node for others
+  network_mode:           bridge                       # bridge, host, or none (none = offline mode)
+  vol_mode:               ""                           # ":ro" when read_only_mounts; "" for read-write
+  service_manager:        none                         # ClawFather does not register as system service
+  no_service:             true                         # No OpenClaw service manager inside container
 
 security:
+  # Enable 'root_mode' when using fourplayers/openclaw image
+  root_mode:              true   # Runs container as root so setup/skills work; off = node user, may EACCES
   # ENABLED by default for ClawFather
-  sandbox_mode: true
-  safe_mode: true
-  bridge_enabled: true
-  no_new_privs: true
-  browser_control: true
-  tools_elevated: true
+  safe_mode:              true   # Prevents destructive commands without manual verification; off = can delete/overwrite
+  bridge_enabled:         true   # Container can reach host (e.g. Ollama) via host.docker.internal; off = no LLM/bridges
+  no_new_privs:           true   # Prevents privilege escalation and sudo exploits; off = standard isolation
+  browser_control:        true   # Agent can drive browser (tabs, navigate, snapshot); off = browser disabled
+  tools_elevated:         true   # Elevated host exec and high-privilege tools; off = reduced blast radius
   # Extra security
-  read_only_mounts: false
-  networking_offline: false
-  paranoid_mode: false
+  sandbox_mode:           false  # Restricts file access to workspace only; on = max data safety
+  read_only_mounts:       false  # Protects skills folder from agent modification; on = read-only skills
+  networking_offline:     false  # Disconnects from external networks (air-gapped); on = max privacy
+  paranoid_mode:          false  # Drops all Linux capabilities (cap_drop ALL); on = max isolation
   # Convinience
-  hooks_enabled: false
-  auto_start: false
+  hooks_enabled:          true   # Gateway hooks for automation and event handling; off = no hook handlers
+  auto_start:             true   # Auto-restart container after reboot; off = manual start each time
   # Danger zone
-  root_mode: false
-  god_mode: false
+  god_mode:               false  # Agent gets Docker socket, can manage other containers; on = God Mode
+
+hooks:
+  entries: boot-md,bootstrap-extra-files,command-logger,session-memory  # Bundled hooks (Install wizard)

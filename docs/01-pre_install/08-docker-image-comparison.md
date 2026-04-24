@@ -1,5 +1,46 @@
 # OpenClaw Docker Image Comparison
 
+## Base Image Quick Reference
+
+When building custom images or choosing a base, these common Debian/Node variants differ significantly. Prefer explicit `node:X-bookworm` over bare `node:X`—the latter uses Docker's default OS (currently Bookworm) and can change when a new Debian becomes standard.
+
+| Feature | debian:bookworm-slim | debian:bookworm | node:22-bookworm-slim | node:24-bookworm-slim | node:22-bookworm | node:24-bookworm |
+| :------ | :------------------: | :------------: | :-------------------: | :-------------------: | :--------------: | :--------------: |
+| **Image size** | ~75 MB | ~120 MB | ~280 MB | ~280 MB | ~1.1 GB | ~1.1 GB |
+| **Node.js** | ❌ | ❌ | ✅ v22 | ✅ v24 | ✅ v22 | ✅ v24 |
+| **npm / npx** | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **yarn** | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **Python3** | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| **apt** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Man pages** | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| **Locales** | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| **tzdata** | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| **Build essentials** | ❌ | Some | Some | Some | ✅ | ✅ |
+| **Good for production** | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| **Good for dev/debugging** | Needs setup | ✅ | Needs setup | Needs setup | ✅ | ✅ |
+| **Best used when** | Lean custom builds | General base | Node 22, lean prod | Node 24, lean prod | Node 22, full comfort | Node 24, full comfort |
+
+### Root vs Node User
+
+Same image, different runtime user—a critical security and usability tradeoff:
+
+| Feature | node:24 as root | node:24 as node user |
+| :------ | :-------------: | :-------------------: |
+| **Default user** | root (uid 0) | node (uid 1000) |
+| **File permissions** | Full access to everything | Limited to own files |
+| **Security risk** | High — container escape = host root | Low — limited blast radius |
+| **npm global install** | ✅ works freely | ❌ needs sudo or `--prefix` workaround |
+| **apt-get install** | ✅ works freely | ❌ needs sudo |
+| **Write anywhere in container** | ✅ | ❌ restricted |
+| **Production safe** | ❌ bad practice | ✅ recommended |
+| **Docker best practice** | ❌ violates least privilege | ✅ follows least privilege |
+| **CVE / vulnerability impact** | Critical — attacker gets root | Contained — attacker gets unprivileged user |
+| **Volume mount issues** | Rarely | Sometimes — host file ownership can mismatch |
+| **Good for vibe coding / dev** | ✅ frictionless | ⚠️ can be annoying |
+| **Good for production** | ❌ | ✅ |
+
+---
+
 ## Official & Popular Images
 
 ---
@@ -10,7 +51,7 @@
 
 | Feature | Details |
 |---------|---------|
-| **Size** | Not specified (claims Alpine but uses Debian) |
+| **Size** | ~1–1.3 GB (Debian-based despite name, see base table) |
 | **Last Updated** | 2026.1.30 |
 | **Maintenance** | Active |
 | **Configuration** | Manual |
@@ -63,7 +104,7 @@
 
 | Feature | Details |
 |---------|---------|
-| **Size** | Not specified |
+| **Size** | ~1–1.3 GB (node base + OpenClaw, similar to fourplayers) |
 | **Last Updated** | Daily automated builds |
 | **Maintenance** | ✅ Automated (checks every 6 hours) |
 | **Configuration** | Manual |
@@ -90,8 +131,8 @@
 
 | Feature | Details |
 |---------|---------|
-| **Size** | Not specified |
-| **Last Updated** | Not specified |
+| **Size** | ~1.2–1.5 GB (includes nginx proxy) |
+| **Last Updated** | Community-sourced; check Docker Hub |
 | **Maintenance** | Community maintained |
 | **Configuration** | Environment-based |
 | **Security** | ✅ Nginx proxy included |
@@ -141,7 +182,8 @@ OpenClaw uses specialized sandbox images for isolated code execution. These are 
 
 | Feature | Details |
 |---------|---------|
-| **Base** | Debian Bookworm Slim |
+| **Base** | Debian Bookworm Slim (~75 MB) |
+| **Size** | ~75–100 MB |
 | **Purpose** | Basic sandbox for code execution |
 | **Includes** | Minimal runtime environment |
 | **Best For** | Lightweight code execution |
@@ -152,7 +194,8 @@ OpenClaw uses specialized sandbox images for isolated code execution. These are 
 
 | Feature | Details |
 |---------|---------|
-| **Base** | Debian Bookworm Slim |
+| **Base** | Debian Bookworm Slim (~75 MB) |
+| **Size** | ~500 MB–1 GB (Node, Go, Rust, build tools) |
 | **Purpose** | Development sandbox |
 | **Includes** | Node.js, Go, Rust, common build tools |
 | **Best For** | Multi-language development tasks |
@@ -163,7 +206,8 @@ OpenClaw uses specialized sandbox images for isolated code execution. These are 
 
 | Feature | Details |
 |---------|---------|
-| **Base** | Debian Bookworm Slim |
+| **Base** | Debian Bookworm Slim (~75 MB) |
+| **Size** | ~800 MB–1.2 GB (Chromium-heavy) |
 | **Purpose** | Browser automation sandbox |
 | **Includes** | Chromium with Chrome DevTools Protocol (CDP) |
 | **Best For** | Web scraping, browser automation, UI testing |
@@ -194,34 +238,3 @@ This image is selected as the default for Clawfather because:
 5. ✅ Well-documented and community-tested
 
 When this image is chosen, the installer automatically enables Root Mode and hides it from the Security step (fewer toggles).
-
----
-
-## How to Change Images
-
-Edit `src/docker-compose.yml`:
-
-```yaml
-services:
-  openclaw:
-    image: fourplayers/openclaw:latest  # Change this line
-```
-
-**Examples:**
-
-```yaml
-# Use phioranex for bleeding edge
-image: ghcr.io/phioranex/openclaw-docker:latest
-
-# Use 1panel for smaller size
-image: 1panel/openclaw:latest
-
-# Use coollabsio for nginx proxy
-image: coollabsio/openclaw:latest
-```
-
-After changing, run:
-```bash
-docker compose pull
-docker compose up -d
-```

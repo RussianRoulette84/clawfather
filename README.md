@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/badge/Version-v1.1-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-v1.2-blue?style=for-the-badge)
 ![Security First](https://img.shields.io/badge/Security-First-8A2BE2?style=for-the-badge&logo=lock&logoColor=white)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Automated-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![Curated Skills](https://img.shields.io/badge/Skills-Curated-blue?style=for-the-badge)
@@ -12,53 +12,75 @@
 
 # About
 
-ClawFather is a **better**, more **secure** way to install OpenClaw with Docker.
+ClawFather is an **easy**, **secure**, and **customizable** way to install OpenClaw inside Docker using a wizard.
 
-The family business with macOS in mind uses a lightweight bridge to communicate with your system "OpenClaw Bridge" instead of giving full system access 🧨
+**WHY**: Becasue OpenClaw is an awesome tool BUT I'm not ready yet for AI to read & install shit around my macOS :D
 
-**“It’s not personal. It’s strictly business.”**
+*“It’s not personal. It’s strictly business.”*
 
-Please at least read this before installing OpenClaw: [01-security-risks.md](docs/01-pre_install/01-security-risks.md)
+**CLAWFATHER PHILOSOPHY**
 
-Why? So that you don't fuck up. From there, you are on your own my friend.
+> A docker setup that avoids full system access to your macOS  
+> **WHILE**  
+> preserving as much as possible of the cool features
 
-**Please don't create Skynets or Molt churches. Use Asimov's laws as a guide. And always be careful with API keys!**
 
 # Install
+
 Run this in terminal:
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Jaroslav84/clawfather/master/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/RussianRoulette84/clawfather/master/install.sh)
 ```
 
-**Demo**
+And it will do EVERYTHING with tons of options to pick from ;)
+
+
+
+# Demo
 ![Demo](screenshots/playback.gif)
-[`asciinema play -s 2 ./screenshots/demo.cast`](./screenshots/demo.cast) (local replay)
+
 
 # Features
-- **Setup wizard**: for OpenClaw inside Docker in a super secure and easy way
-- **Folder Mirroring**: 
+- **Setup wizard**: an easy/secure/customizable way to install OpenClaw inside Docker
+- **Folder Mirroring**: two-way persistant storage between Docker and macOS
   | From | To | Description |
   |------|----|-------------|
   | **macOS/Linux** | **Docker** | "Projects" folder mirrored into Docker workspace (optionally) |
-  | **Docker** | **macOS/Linux** | 'workspace' folder mirrored into your macOS/Linux |
-- **Range of Docker images to select**:
+  | **Docker** | **macOS/Linux** | 'workspace' folder mirrored into your macOS |
+- **Range of Docker images/builds to select**:
+  | Image       | Security | Notes | Problems | User | Risks
+  |-------------|----------|-------|----------|------|--
+  | clawfather  | ⭐⭐⭐⭐ | Pre-packed with all the goodies | none :) | - `root` (only) | - `no-new-privileges` disabled<br>- cap_add(CHOWN/SETGID/SETUID/DAC_OVERRIDE)
+  | fourplayers | ⭐⭐⭐⭐ | Image extended with Dockerfile | none :) | - `root` (only) | - `no-new-privileges` disabled<br>- cap_add(CHOWN/SETGID/SETUID/DAC_OVERRIDE)
+  | alpine      | ⭐⭐⭐⭐⭐ | Slim (50MB) alpine image only | no apt/pip install | - `node` (default)<br>- `root` (optional) | none :)
+  | phioranex   | ⭐⭐⭐⭐ | [UNTESTED] | |
+  | coollabsio  | ⭐⭐⭐ | [UNTESTED] | |
+  | 1panel      | ⭐⭐⭐ | [UNTESTED] | |
+- **Internet Browsing in Docker**: Fully supported! Order pizza, make screenshots, defeat bot-detectors and battele JS heavy websites!
+  - **headful browsing** with system Chromium, optionally with noVNC + Fluxbox for live viewing
+  - **headless browsing** with Playwright
 
-  | Image       | Security |
-  |-------------|----------|
-  | alpine      | ⭐⭐ |
-  | fourplayers | ⭐⭐⭐⭐⭐ |
-  | phioranex   | ⭐⭐⭐⭐ [UNTESTED] |
-  | coollabsio  | ⭐⭐⭐ [UNTESTED] |
-  | 1panel      | ⭐⭐⭐ [UNTESTED] |
-- **Local LLM support**: pre-configures Docker to work with Ollama, installs everything needed.
+  
 - **Easy Pairing process**: so that no one (even with token) can talk to your OpenClaw
 - **Skills**: Hand picked collection from clawhub.ai with `sync_skills.sh` which downloads skills inside  [CLAWHUB_SKILLS.md](./skills/CLAWHUB_SKILLS.md)
 - **Guides**: [Pre-install](docs/01-pre_install/00-TABLE-OF-CONTENTS.md) · [Post-install](docs/02-post_install/00-TABLE-OF_CONTENTS.md) · [OpenClaw Reference](docs/03-openclaw_cli/00-TABLE-OF-CONTENTS.md) · [Bonus](docs/04-bonus/00-TABLE-OF-CONTENTS.md)
 - **Pre-configured with 3 agents (general/light/heavy)**:
   Fine-tuned model and agent selection for different use cases. Keeps costs low.
+- **Local LLM support**: pre-configures Docker to work with Ollama, installs everything needed. **DANGER**: pront injections loves weak LLMs!!
 - **OpenClaw Bridge**: lightweight bridge for Docker → macOS enabled by default
 
-*NOTE: setup channels, change provider yourself ;)*
+
+
+
+# Notes
+
+Setup does not include channel configuration; you must configure channels yourself.
+
+Please at least read this before installing OpenClaw: [01-security-risks.md](docs/01-pre_install/01-security-risks.md)
+Why? So that you don't fuck up. From there, you are on your own my friend.
+
+**Please don't create Skynets or Molt churches. Use Asimov's laws as a guide. And always be careful with API keys!**
+
 
 # Security Toggles
 
@@ -77,28 +99,131 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Jaroslav84/clawfather/master
   - **God Mode**: grants agent control over the Docker socket to manage other containers
 
 
-# LLM Settings
+# Browsing
 
-**Pre-configured with 4 providers × 3 agents (general/light/heavy)**:
+You can browse the internet and order pizza from Docker using "headful" or "headless" methods of running chromium
+- **headful browsing**: you see wtf is going on with noVPN + fluxbox (lightwight window manager)
+- **headless browsing**: you don't. used primeraly fro tasks, like ordering pizza
 
-  Fine-tuned model and agent selection for different use cases. Keeps costs low.
+| Feature  | Source                                    | Usage                                              | Path                                                                 |
+| -------- | ----------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------- |
+| Headful  | apt-get (chromium, xvfb, fluxbox, dbus, x11vnc, novnc, websockify, fonts, libatk, ffmpeg, imagemagick, build-essential) + HTTP_PROXY | 🌐 Manual browsing, view session via noVNC         | http://localhost:7007/vnc.html?host=localhost&port=7007              |
+| Headless | npx (Playwright) + apt-get (chromium-headless-shell) | 🍕 Pizza automation, 📸 Screenshots (no display) | /home/node/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome, /usr/bin/chromium-headless-shell |
 
-  - **Z.AI** is default provider
-    - **general** zai/glm-4.7 
-    - **light** zai/glm-4.7-flash 
-    - **heavy** zai/glm-4.7 
-  - **Google & Antigravity** as fallback
-    - **general:** google/gemini-3-pro-preview OR google-antigravity/gemini-3-pro-high 
-    - **light** google/gemini-3-flash-preview OR google-antigravity/gemini-3-flash
-    - **heavy** google/gemini-3-pro-preview OR google-antigravity/gemini-3-pro-high
-  - **Anthropic** as option
-    - **general** anthropic/claude-sonnet-4-5
-    - **light** anthropic/claude-haiku-4-5
-    - **heavy** anthropic/claude-opus-4-5
-  - **Local Ollama** as option
-    - **general** ollama/glm-4.7 OR ollama/gemini-3-pro OR ollama/claude-3-sonnet-20250219
-    - **light** ollama/glm-4.7-flash OR ollama/gemini-2.0-flash-lite OR ollama/claude-3-haiku-20240307
-    - **heavy** ollama/glm-4.7 OR ollama/gemini-3-pro OR ollama/claude-opus-4-5-thinking
+
+### JS / Anti-Bot / Cookie Techniques
+
+| Technique                                                             | Headless | Headful |
+| --------------------------------------------------------------------- | -------- | ------- |
+| Basic anti-bot flags (AutomationControlled, --no-sandbox)             | ✅       | ✅      |
+| Realistic user-agent                                                  | ✅       | ✅      |
+| 1920×1080 viewport                                                    | ✅       | ✅      |
+| navigator.webdriver = false                                           | ✅       | ✅      |
+| Language/accept headers                                               | ✅       | ✅      |
+| Smart JS content detection (waitForFunction)                          | ✅       | ✅      |
+| Mocked plugins                                                        | ✅       | ✅      |
+| Mocked window.chrome object                                           | ✅       | ✅      |
+| Mocked permissions API                                                | ✅       | ✅      |
+| Screen properties override                                            | ✅       | ✅      |
+| Advanced sec-headers (sec-ch-ua, sec-fetch-*)                         | ✅       | ✅      |
+| Used networkidle0                                                     | ✅       | ✅      |
+| Cookie OK button click                                                | ✅       | ✅      |
+| Persistent browser profile, cache, cookies (mirrored with Docker)     | ✅       | ✅      |
+
+
+### Packages added
+
+| Item                              | Source | Version                      | Needed for            |
+| --------------------------------- | ------ | ---------------------------- | --------------------- |
+| build-essential                   | apt    | 12.9                         | Build awsome stuff    |
+| ffmpeg                            | apt    | 7:5.1.8-0+deb12u1            | Media                 |
+| imagemagick                       | apt    | 8:6.9.11.60+dfsg-1.6+deb12u6  | Media                 |
+| chromium-headless-shell           | apt    | 145.0.7632.75                | Browsing headless     |
+| chromium                          | apt    | 145.0.7632.75                | Browsing headful      |
+| fonts-liberation                  | apt    | 1:1.07.4-11                  | Browsing headful      |
+| fonts-noto-color-emoji           | apt    | 2.042-0+deb12u1              | Browsing headful      |
+| libatk-bridge2.0-0                | apt    | 2.46.0-5                     | Browsing headful      |
+| dbus                              | apt    | 1.14.10-1~deb12u1            | Browsing headful noVNC |
+| xvfb                              | apt    | 2:21.1.7-3+deb12u11          | Browsing headful noVNC |
+| x11vnc                            | apt    | 0.9.16-9                     | Browsing headful noVNC |
+| novnc                             | apt    | 1:3.0-1                      | Browsing headful noVNC |
+| websockify                        | apt    | 0.10.0+dfsg1-4+b1            | Browsing headful noVNC |
+| fluxbox                           | apt    | 1.3.5-2.1                    | Window manager + Browsing headful noVNC |
+| openclaw                          | npm    | latest                       | CLI + Gateway         |
+| playwright                        | npm    | latest                       | Browsing headless     |
+| @playwright/test                  | npm    | latest                       | Browsing headless     |
+| @vector-im/matrix-bot-sdk         | npm    | 0.8.0-element.3              | Matrix channel        |
+| @matrix-org/matrix-sdk-crypto-nodejs | npm | 0.4.0                        | Matrix channel        |
+| markdown-it                       | npm    | 14.1.1                       | Matrix channel        |
+| music-metadata                    | npm    | 11.12.0                      | Matrix channel        |
+
+### Cache & Components
+
+| Component               | Location                                                     |
+| ----------------------- | ------------------------------------------------------------ |
+| Playwright CLI          | /usr/local/bin/playwright                                    |
+| Playwright Library      | /usr/local/lib/node_modules/playwright/                      |
+| Chromium Browsers       | /home/node/.cache/ms-playwright/chromium-1208                |
+| Chromium Headless Shell | /home/node/.cache/ms-playwright/chromium_headless_shell-1208 |
+| FFmpeg (for Playwright) | /home/node/.cache/ms-playwright/ffmpeg-1011                  |
+
+### Test Verified
+
+Ran a Playwright test:
+```javascript
+  chromium.launch() → newPage() → goto('about:blank') → title() → close()
+```
+
+run `install_report.sh` inside docker:
+| Test                              | Result                                        |
+| --------------------------------- | --------------------------------------------- |
+| chromium --version                | Working (145.0.7632.75)                        |
+| chromium-headless-shell --version | Working (145.0.7632.75)                        |
+| novnc_proxy                       | Available at /usr/share/novnc/utils/novnc_proxy |
+| websockify                        | Available as /usr/bin/websockify               |
+
+
+
+# Config layout
+- **`.env`** (gitignored): Generated by install from `config.yaml` + merged `.env.sensitive`. Used by Docker. Use `docker compose up -d` directly (Play button works).
+- **`.env.sensitive`** (gitignored): API keys, token, HATCH_INFO. Wizard writes here. Install merges into `.env`.
+- **`config.yaml`**: Single config — models, gateway, workspace, docker, ollama, security. Wizard writes chosen values here. Used to prefill wizard on re-run.
+
+# ENV variables lookup table
+
+| Variable                   | Source         | Default                   | Description                                      |
+| -------------------------- | -------------- | ------------------------- | ------------------------------------------------ |
+| COMPOSE_PROJECT_NAME       | config → .env  | openclaw                  | Docker Compose project name                      |
+| OPENCLAW_CONFIG_DIR        | config → .env  | ./.openclaw               | Host path to OpenClaw config                     |
+| OPENCLAW_WORKSPACE_DIR     | config → .env  | ./.openclaw/workspace     | Host path to workspace                           |
+| OPENCLAW_SKILLS_DIR        | config → .env  | ./.openclaw/skills        | Host path to skills                              |
+| OPENCLAW_GATEWAY_PORT      | config → .env  | 18789                     | Gateway WebSocket port                           |
+| OPENCLAW_BRIDGE_PORT       | config → .env  | 18790                     | Bridge port                                      |
+| OPENCLAW_GATEWAY_BIND      | config → .env  | lan                       | Gateway bind address                             |
+| OPENCLAW_GATEWAY_CMD       | config → .env  | openclaw                  | Gateway command (openclaw or node dist/index.js) |
+| OPENCLAW_USER              | config → .env  | node                      | Container user (root for fourplayers)            |
+| OPENCLAW_IMAGE             | config → .env  | fourplayers/openclaw:latest | CLI image                                      |
+| OPENCLAW_DOCKER_BASE       | config → .env  | /home/node/.openclaw      | Container path for config mount                  |
+| OPENCLAW_DOCKER_WORKSPACE  | config → .env  | /home/node/.openclaw/workspace | Container workspace path                    |
+| OPENCLAW_DOCKER_HOME       | config → .env  | /home/node                | Container HOME                                   |
+| OPENCLAW_NETWORK_MODE      | config → .env  | bridge                    | bridge, host, or none                            |
+| OPENCLAW_SERVICE_MANAGER   | config → .env  | none                      | Service manager inside container                 |
+| OPENCLAW_NO_SERVICE        | config → .env  | true                      | Disable OpenClaw service manager                 |
+| MIRROR_PROJECTS            | config → .env  | —                         | Mount host projects into container               |
+| LOCAL_PROJECTS_DIR         | config → .env  | —                         | Host path to projects (when mirror)              |
+| DOCKER_PROJECTS_PATH       | config → .env  | —                         | Container path for mounted projects              |
+| NOVNC_PORT                 | config → .env  | 7007                      | noVNC web port                                   |
+| SANDBOX_MODE               | config → .env  | true                      | Restrict file access to workspace                |
+| SAFE_MODE                  | config → .env  | true                      | Require manual verification for destructive cmds |
+| GOD_MODE                   | config → .env  | false                     | Grant Docker socket access                       |
+| OLLAMA_BASE_URL            | .env.sensitive | —                         | Ollama API URL (empty = cloud-only)              |
+| OLLAMA_API_KEY             | .env.sensitive | —                         | Ollama API key                                   |
+| OPENCLAW_GATEWAY_TOKEN     | .env.sensitive | —                         | Gateway auth token (generated if empty)          |
+| ZAI_API_KEY                | .env.sensitive | —                         | ZAI cloud model API key                          |
+| ANTHROPIC_API_KEY          | .env.sensitive | —                         | Anthropic API key                                |
+| GEMINI_API_KEY             | .env.sensitive | —                         | Google Gemini API key                            |
+| HATCH_INFO                 | .env.sensitive | —                         | Prefilled hatch message / persona                |
+
 
 
 # Guides — Table of Contents
@@ -304,9 +429,3 @@ skills/
 ```
 
 ---
-
-
-## Config layout
-- **`.env`** (gitignored): Secrets only — API keys, `OPENCLAW_GATEWAY_TOKEN`, `OLLAMA_API_KEY`. Install writes `OPENCLAW_GATEWAY_TOKEN` when it generates one.
-- **`.env.install`** (gitignored): Generated from `config.yaml` for Docker Compose. Used by `env_file` in docker-compose.yml. For manual `docker compose up`, run `./src/compose.sh up -d` (loads both .env and .env.install) or `source .env.install && docker compose up -d`.
-- **`config.yaml`**: Single config — models, gateway, workspace, docker, ollama, security. Wizard writes chosen values here. Used to prefill wizard on re-run.

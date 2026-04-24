@@ -4,24 +4,24 @@
 # Requires: PROJECT_DIR, SEC_OPTS_0..SEC_OPTS_12, lib/utils.sh (sed_inplace)
 
 apply_security_settings() {
-    # Map checklist output to variables (checklist_tui sets SEC_OPTS_0, SEC_OPTS_1, ...)
-    # When SEC_ROOT_HIDDEN=true (fourplayers/openclaw), checklist had 12 options (no Root); inject Root=true at index 1
+    # Map checklist output to variables (checklist_tui sets SEC_OPTS_0..SEC_OPTS_12). Display order: 0=Root 1=Safe 2=Bridge 3=Browser 4=Tools 5=Hooks 6=NoNewPrivs 7=AutoStart 8=Sandbox 9=Paranoid 10=Offline 11=ReadOnly 12=God
+    # When SEC_ROOT_HIDDEN=true (fourplayers), inject Root=true at index 0 and skip SEC_OPTS_0 so array indices stay aligned
     if [ "${SEC_ROOT_HIDDEN:-false}" = "true" ]; then
-        SEC_OPTS="${SEC_OPTS_0:-false},true,${SEC_OPTS_1:-false},${SEC_OPTS_2:-false},${SEC_OPTS_3:-false},${SEC_OPTS_4:-false},${SEC_OPTS_5:-false},${SEC_OPTS_6:-false},${SEC_OPTS_7:-false},${SEC_OPTS_8:-false},${SEC_OPTS_9:-false},${SEC_OPTS_10:-false},${SEC_OPTS_11:-false}"
+        SEC_OPTS="true,${SEC_OPTS_1:-false},${SEC_OPTS_2:-false},${SEC_OPTS_3:-false},${SEC_OPTS_4:-false},${SEC_OPTS_5:-false},${SEC_OPTS_6:-false},${SEC_OPTS_7:-false},${SEC_OPTS_8:-false},${SEC_OPTS_9:-false},${SEC_OPTS_10:-false},${SEC_OPTS_11:-false},${SEC_OPTS_12:-false}"
     else
         SEC_OPTS="${SEC_OPTS_0:-false},${SEC_OPTS_1:-false},${SEC_OPTS_2:-false},${SEC_OPTS_3:-false},${SEC_OPTS_4:-false},${SEC_OPTS_5:-false},${SEC_OPTS_6:-false},${SEC_OPTS_7:-false},${SEC_OPTS_8:-false},${SEC_OPTS_9:-false},${SEC_OPTS_10:-false},${SEC_OPTS_11:-false},${SEC_OPTS_12:-false}"
     fi
     IFS=',' read -r -a SEC_ARRAY <<< "$SEC_OPTS"
 
-    SANDBOX_MODE="$([ "${SEC_ARRAY[0]}" == "true" ] && echo "true" || echo "false")"
-    ROOT_MODE="$([ "${SEC_ARRAY[1]}" == "true" ] && echo "true" || echo "false")"
-    SAFE_MODE="$([ "${SEC_ARRAY[2]}" == "true" ] && echo "true" || echo "false")"
-    BRIDGE_ENABLED="$([ "${SEC_ARRAY[3]}" == "true" ] && echo "true" || echo "false")"
-    BROWSER_CONTROL="$([ "${SEC_ARRAY[4]}" == "true" ] && echo "true" || echo "false")"
-    TOOLS_ELEVATED="$([ "${SEC_ARRAY[5]}" == "true" ] && echo "true" || echo "false")"
-    HOOKS_ENABLED="$([ "${SEC_ARRAY[6]}" == "true" ] && echo "true" || echo "false")"
-    NO_NEW_PRIVS="$([ "${SEC_ARRAY[7]}" == "true" ] && echo "true" || echo "false")"
-    AUTO_START="$([ "${SEC_ARRAY[8]}" == "true" ] && echo "true" || echo "false")"
+    ROOT_MODE="$([ "${SEC_ARRAY[0]}" == "true" ] && echo "true" || echo "false")"
+    SAFE_MODE="$([ "${SEC_ARRAY[1]}" == "true" ] && echo "true" || echo "false")"
+    BRIDGE_ENABLED="$([ "${SEC_ARRAY[2]}" == "true" ] && echo "true" || echo "false")"
+    BROWSER_CONTROL="$([ "${SEC_ARRAY[3]}" == "true" ] && echo "true" || echo "false")"
+    TOOLS_ELEVATED="$([ "${SEC_ARRAY[4]}" == "true" ] && echo "true" || echo "false")"
+    HOOKS_ENABLED="$([ "${SEC_ARRAY[5]}" == "true" ] && echo "true" || echo "false")"
+    NO_NEW_PRIVS="$([ "${SEC_ARRAY[6]}" == "true" ] && echo "true" || echo "false")"
+    AUTO_START="$([ "${SEC_ARRAY[7]}" == "true" ] && echo "true" || echo "false")"
+    SANDBOX_MODE="$([ "${SEC_ARRAY[8]}" == "true" ] && echo "true" || echo "false")"
     PARANOID_MODE="$([ "${SEC_ARRAY[9]}" == "true" ] && echo "true" || echo "false")"
     NETWORKING_OFFLINE="$([ "${SEC_ARRAY[10]}" == "true" ] && echo "true" || echo "false")"
     READ_ONLY_MOUNTS="$([ "${SEC_ARRAY[11]}" == "true" ] && echo "true" || echo "false")"
@@ -34,9 +34,11 @@ apply_security_settings() {
         [ "$NO_NEW_PRIVS" == "true" ] && sed_inplace 's/security_opt: .*/security_opt: ["no-new-privileges:true"]/' "$_dc" || true
         [ "$NETWORKING_OFFLINE" == "true" ] && sed_inplace 's/network_mode: .*/network_mode: none/' "$_dc" || true
         [ "$BRIDGE_ENABLED" == "true" ] && sed_inplace 's/extra_hosts: .*/extra_hosts: ["host.docker.internal:host-gateway"]/' "$_dc" || true
-        # READ_ONLY_MOUNTS: OPENCLAW_VOL_MODE is set in .env.install by gateway.sh
+        # READ_ONLY_MOUNTS: OPENCLAW_VOL_MODE is set in .env by gateway.sh
+        [ "$AUTO_START" == "true" ] && sed_inplace 's/restart: .*/restart: unless-stopped/' "$_dc" || true
         [ "$AUTO_START" == "false" ] && sed_inplace 's/restart: .*/restart: no/' "$_dc" || true
         [ "$GOD_MODE" == "true" ] && sed_inplace 's/# - \/var\/run\/docker.sock/- \/var\/run\/docker.sock/' "$_dc" || true
+        [ "$GOD_MODE" == "false" ] && sed_inplace 's/- \/var\/run\/docker.sock/# - \/var\/run\/docker.sock/' "$_dc" || true
     fi
 }
 

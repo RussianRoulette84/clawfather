@@ -1,0 +1,92 @@
+# ClawFather Dockerfile
+# 
+#  Use: docker build -f Dockerfile.clawfather -t openclaw-gateway .
+#
+#  Base: node:24-bookworm (~1.1 GB, Node v24, npm, yarn, Python3, apt, build-essential)
+#
+FROM node:24-bookworm
+
+# Recommended for freedom and compatibility. You are in Docker anyways, so why not run as root?
+USER root
+
+# Install extra libs
+# - basics for vibe coding: build-essential, python3-pip, ffmpeg, imagemagick
+# - browser automation tools for pizza ordering (headless + headful Chromium viewable in macOS browser via noVNC+Fluxbox)
+# - Optional: openssh-server
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        python3-pip \
+        ffmpeg \
+        imagemagick \
+        chromium \
+        chromium-headless-shell \
+        fonts-liberation \
+        fonts-noto-color-emoji \
+        libatk-bridge2.0-0 \
+        dbus \
+        xvfb \
+        x11vnc \
+        novnc \
+        websockify \
+        fluxbox && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+  
+# Install OpenClaw globally from npm
+RUN npm install -g openclaw@latest 
+
+# Install matrix channel dependencies
+RUN cd /usr/local/lib/node_modules/openclaw && \
+  npm install \
+  @vector-im/matrix-bot-sdk@0.8.0-element.3 \
+  @matrix-org/matrix-sdk-crypto-nodejs@0.4.0 \
+  markdown-it@14.1.1 \
+  music-metadata@11.12.0
+
+# Install Playwright (Downloads its own Chrome - BEST FOR AUTOMATION & SCREENSHOTS)
+# IMPORTANT: Set PLAYWRIGHT_BROWSERS_PATH BEFORE install to target mounted cache
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
+RUN npm install -D playwright @playwright/test
+RUN cd /usr/local/lib/node_modules/openclaw && npx playwright install chromium
+
+# Environment setup
+ENV NODE_ENV=production
+ENV HOME=/home/node
+ENV TERM=xterm-256color
+
+# SSH configuration script
+# COPY docker/setup-ssh.sh /setup-ssh.sh
+# RUN chmod +x /setup-ssh.sh
+# EXPOSE 22
+
+# Create data directory for OpenClaw config and generated certs
+# Fix ownership so node user can write (build runs as root)
+RUN mkdir -p /home/node/.openclaw && \
+    if [ "$(id -u)" = "0" ]; then chown -R node:node /home/node || exit 1; fi
+
+# SYMLINK: /root/.cache -> /home/node/.cache
+# This ensures any tool writing to /root/.cache goes to the mounted volume
+RUN mkdir -p /home/node/.cache/ms-playwright && \
+    chown -R node:node /home/node/.cache && \
+    rm -rf /root/.cache && \
+    ln -sf /home/node/.cache /root/.cache
+
+# Add supervisord config
+# COPY docker/supervisord.conf /etc/supervisor/conf.d/openclaw.conf
+
+# SCRIPTS & PATCHES
+COPY docker/patch-browser-config.js /usr/local/bin/patch-browser-config.js
+RUN chmod +x /usr/local/bin/patch-browser-config.js
+
+COPY docker/install_report.sh /usr/local/bin/install_report.sh
+RUN chmod +x /usr/local/bin/install_report.sh
+
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# 7007 is noVPN
+EXPOSE 18789 18790 7007
+
+# CMD ["supervisord", "-n", "-c", "/etc/supervisor/conf.d/openclaw.conf"]

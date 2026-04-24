@@ -2,20 +2,28 @@ name: ${COMPOSE_PROJECT_NAME:-openclaw}
 
 services:
   openclaw-gateway:
+    build: .
+    image: openclaw-gateway:local
     env_file:
       - .env
-      - .env.install
-    image: ${OPENCLAW_IMAGE:-alpine/openclaw:latest}
-    user: ${OPENCLAW_USER:-node}
-    # Security Parameters (Managed by install_clawfather.sh)
-    cap_drop: []
-    security_opt: ["no-new-privileges:true"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     network_mode: ${OPENCLAW_NETWORK_MODE:-bridge}
-    restart: no
+    restart: unless-stopped
     ports:
-      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
-      - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+      - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+      - "127.0.0.1:${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+      # noVNC port for "headful browser inside Docker with live visualization"
+      - "127.0.0.1:${NOVNC_PORT:-7007}:7007"
+    user: ${OPENCLAW_USER:-node}
+    # Security Parameters (Managed by install_clawfather.sh)
+    #cap_drop: ["ALL"]
+    #security_opt: ["no-new-privileges:true"]
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+
     environment:
       - HOME=${OPENCLAW_DOCKER_HOME:-/home/node}
       # User-scoped global installs (node user) go to $HOME/.local/bin; ensure it's on PATH
@@ -38,39 +46,44 @@ services:
       # - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       # - OLLAMA_API_KEY=${OLLAMA_API_KEY}
       - WORKSPACE_DIR=${OPENCLAW_DOCKER_WORKSPACE:-/home/node/.openclaw/workspace}
+      # For noVNC
+      - DISPLAY=:99
 
     volumes:
       # Config and workspace (container paths from install wizard / config.yaml)
       - ${OPENCLAW_CONFIG_DIR:-./.openclaw}:${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}
       - ${OPENCLAW_WORKSPACE_DIR:-./.openclaw/workspace}:${OPENCLAW_DOCKER_WORKSPACE:-/home/node/.openclaw/workspace}
-      # Optional: mirror projects folder (.env.install sets these; install uncomments when MIRROR_PROJECTS=yes)
-      - ${LOCAL_PROJECTS_DIR:-}:${DOCKER_PROJECTS_PATH:-}
-      # Map your local skills folder so you can edit/add them from host
-      - ${OPENCLAW_SKILLS_DIR:-./skills}:${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}/skills${OPENCLAW_VOL_MODE:-}
+      # Optional: mirror projects folder (.env sets these; install uncomments when MIRROR_PROJECTS=yes)
+      - ${LOCAL_PROJECTS_DIR:-/Users/yaro/Projects/ai}:${DOCKER_PROJECTS_PATH:-/root/.openclaw/workspace/projects}
+      # Skills are copied into the container at install time (no bind mount)
       # (Cool Tweak #2) Persist command history across reboots (when OPENCLAW_USER=root; when node, consider /home/node/.local/share/history)
       - openclaw_history:/root/.local/share/history
-
       # (Important) Map the model configuration file
       - ./config.yaml:/app/config.yaml
+      # Cache for Playwright
+      - openclaw_cache:/home/node/.cache
       # (Cool Tweak #6) God Mode: Grant agent Docker control (Comment out to disable)
-      # - /var/run/docker.sock:/var/run/docker.sock
+      # # # # # # # # - /var/run/docker.sock:/var/run/docker.sock
 
     # use an init process (PID 1) inside the container.
     init:  true
+    # Override image entrypoint so the process runs as compose user (root for fourplayers).
+    # fourplayers image uses runuser -u node in entrypoint, which then tries to chown /home/node/.openclaw and fails.
+    entrypoint: ["sh", "-c"]
     # --allow-unconfigured: lets gateway start before "openclaw setup" has run (avoids restart loop)
     # OPENCLAW_GATEWAY_CMD: "node dist/index.js" (alpine) or "openclaw" (fourplayers — no dist/index.js in image)
     # Tee gateway stdout/stderr to OPENCLAW_DOCKER_BASE/logs/gateway.log
+   # ✅ NEW: Patch + Start Gateway (The One True Command)
     command:
-      [
-        "sh", "-c",
-        "mkdir -p ${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}/logs && ${OPENCLAW_GATEWAY_CMD:-node dist/index.js} gateway --allow-unconfigured --bind ${OPENCLAW_GATEWAY_BIND:-lan} --port 18789 2>&1 | tee -a ${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}/logs/gateway.log",
-      ]
+      - |
+        mkdir -p ${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}/logs && \
+        node /tmp/patch-browser-config.js && \
+        ${OPENCLAW_GATEWAY_CMD:-openclaw} gateway --allow-unconfigured --bind ${OPENCLAW_GATEWAY_BIND:-lan} --port 18789 2>&1 | tee -a ${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}/logs/gateway.log
 
   openclaw-cli:
     env_file:
       - .env
-      - .env.install
-    image: ${OPENCLAW_IMAGE:-alpine/openclaw:latest}
+    image: ${OPENCLAW_IMAGE:-fourplayers/openclaw:latest}
     environment:
       HOME: ${OPENCLAW_DOCKER_HOME:-/home/node}
       PATH: ${OPENCLAW_DOCKER_HOME:-/home/node}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -84,11 +97,12 @@ services:
     volumes:
       - ${OPENCLAW_CONFIG_DIR:-./.openclaw}:${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}
       - ${OPENCLAW_WORKSPACE_DIR:-./.openclaw/workspace}:${OPENCLAW_DOCKER_WORKSPACE:-/home/node/.openclaw/workspace}
-      - ${OPENCLAW_SKILLS_DIR:-./skills}:${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}/skills${OPENCLAW_VOL_MODE:-}
+      # Skills are copied into the container at install time (no bind mount)
     stdin_open: true
     tty: true
     init: true
-    entrypoint: ["node", "dist/index.js"]
+    entrypoint: ["openclaw"]
 
 volumes:
   openclaw_history:
+  openclaw_cache:

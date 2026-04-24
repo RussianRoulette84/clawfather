@@ -175,8 +175,10 @@ ask_tui "Workspace directory on Docker" "$OPENCLAW_DOCKER_BASE/workspace" "OPENC
 OPENCLAW_DOCKER_WORKSPACE="${OPENCLAW_DOCKER_WORKSPACE_INPUT:-$OPENCLAW_DOCKER_BASE/workspace}"
 
 if [ "$MIRROR_PROJECTS" = true ]; then
-    # Projects on Docker: default = workspace directory (mount projects folder directly into workspace)
-    _default_docker_projects="$OPENCLAW_DOCKER_WORKSPACE"
+    # Projects on Docker: default = workspace + basename of host projects dir (e.g. ~/.openclaw/workspace/ai)
+    _projects_basename="$(basename "${PROJECTS_DIR}" 2>/dev/null)"
+    [ -z "$_projects_basename" ] && _projects_basename="ai"
+    _default_docker_projects="$OPENCLAW_DOCKER_WORKSPACE/$_projects_basename"
     ask_tui "${HOST_OS_LABEL:-macOS} Projects directory on Docker" "$_default_docker_projects" "DOCKER_PROJECTS_PATH_INPUT" "$TREE_TOP" 1 0
     DOCKER_PROJECTS_PATH="${DOCKER_PROJECTS_PATH_INPUT:-$_default_docker_projects}"
     DOCKER_PROJECTS_BASENAME="$(basename "${DOCKER_PROJECTS_PATH}" 2>/dev/null || echo "workspace")"
@@ -225,18 +227,18 @@ Expose gateway to the public internet via Tailscale." "" "TAILSCALE_EXP_SEL" 0 "
 case "$GATEWAY_BIND_SEL" in *"Loopback"*) GATEWAY_BIND="loopback" ;; *"LAN"*) GATEWAY_BIND="lan" ;; *"Tailnet"*) GATEWAY_BIND="tailscale" ;; *"Auto"*) GATEWAY_BIND="auto" ;; *) GATEWAY_BIND="${GATEWAY_BIND_CUSTOM_IP:-0.0.0.0}" ;; esac
 case "$TAILSCALE_EXP_SEL" in *"Off"*) TAILSCALE_EXP="off" ;; *"Serve"*) TAILSCALE_EXP="serve" ;; *"Funnel"*) TAILSCALE_EXP="funnel" ;; esac
 
-IMG_OPTIONS="alpine/openclaw:latest
-fourplayers/openclaw:latest
+IMG_OPTIONS="fourplayers/openclaw:latest
+alpine/openclaw:latest
 ghcr.io/phioranex/openclaw-docker
 coollabsio/openclaw:latest
 1panel/openclaw:latest"
-IMG_SUBTITLES="Security Rating: ⭐⭐
-Security Rating: ⭐⭐⭐⭐⭐
+IMG_SUBTITLES="Security Rating: ⭐⭐⭐⭐⭐
+Security Rating: ⭐⭐
 Security Rating: ⭐⭐⭐⭐
 Security Rating: ⭐⭐⭐
 Security Rating: ⭐⭐⭐"
-IMG_DESC="Official image, widely compatible and stable. Built on Debian to ensure musl library compatibility and standard security profile with no extra hardening. Requires manual coordination for security patches. Best for users who prefer the official distribution.
-Proactive security with built-in HTTPS support. Actively maintained with very frequent updates and optimized for zero-config security configurations. Reduced attack surface via automated setup. Recommended for security-conscious production use.
+IMG_DESC="Proactive security with built-in HTTPS support. Actively maintained with very frequent updates and optimized for zero-config security configurations. Reduced attack surface via automated setup. Recommended for security-conscious production use.
+Official image, widely compatible and stable. Built on Debian to ensure musl library compatibility and standard security profile with no extra hardening. Requires manual coordination for security patches. Best for users who prefer the official distribution.
 Bleeding-edge updates every 6 hours via automation. Minimizes exposure to known CVEs in OpenClaw. Standard container security with standard permissions. Uses GitHub Container Registry for verified pulls. Best for users who prioritize the latest security fixes.
 Includes Nginx proxy by default for front-facing security. Hardened for the Coolify deployment platform. Environment-variable based security configuration. Simplifies the addition of SSL/TLS certificates. Good for deployments requiring an integrated proxy.
 Optimized for the 1Panel security ecosystem. Smaller image size (~1GB) reducing some overhead. Recently updated and actively maintained with standard security defaults within the panel environment. Best if already using 1Panel for server management."
@@ -258,8 +260,7 @@ export FOURPLAYERS_IMAGE
 SEC_ROOT_HIDDEN=false
 [ "$FOURPLAYERS_IMAGE" = true ] && SEC_ROOT_HIDDEN=true
 export SEC_ROOT_HIDDEN
-# fourplayers: root on by default (injected in security.sh); alpha/alpine: root off
-[ "$FOURPLAYERS_IMAGE" = true ] && SEC_OPTS_DEFAULT="1,2,3,4,5,7,8"
+# fourplayers: root on is forced in security.sh (Root hidden in UI); checklist defaults always from config below
 
 ask_yes_no_tui "Install local LLM using ollama?" "n" "USE_OLLAMA_SEL" 1 0
 [[ "$USE_OLLAMA_SEL" =~ ^[Yy] ]] && USE_OLLAMA=true || USE_OLLAMA=false
@@ -267,9 +268,8 @@ export USE_OLLAMA
 
 [ -f "$INSTALL_DIR/install/models.sh" ] && source "$INSTALL_DIR/install/models.sh" && run_model_setup
 
-# Full 13-option list (Root Mode is index 1)
-SEC_OPTIONS_FULL="Sandbox Mode
-Root Mode
+# Full 13-option list: 0=Root 1=Safe 2=Bridge 3=Browser 4=Tools 5=Hooks 6=NoNewPrivs 7=AutoStart 8=Sandbox 9=Paranoid 10=Offline 11=ReadOnly 12=God
+SEC_OPTIONS_FULL="Root Mode
 Safe Mode
 OpenClaw Bridge (Host Access)
 Browser Control
@@ -277,12 +277,12 @@ Tools Elevated
 Hooks
 No New Privileges
 Auto-Start Docker
+Sandbox Mode
 Paranoid Mode (cap_drop)
 Offline Mode
 Read-Only Mounts
 God Mode"
-SEC_DESCRIPTIONS_FULL="Enabled: Restricts agent file access strictly to the local workspace folder for maximum data safety.\\nDisabled: Grants agent access to your entire user home directory, exposing personal files and sensitive keys.
-Enabled: Runs the container as root so the setup wizard and global npm installs (e.g. skills) work.\\nDisabled: Uses the image default user (node), which may cause EACCES during skill install.
+SEC_DESCRIPTIONS_FULL="Enabled: Runs the container as root so the setup wizard and global npm installs (e.g. skills) work.\\nDisabled: Uses the image default user (node), which may cause EACCES during skill install.
 Enabled: Prevents the agent from executing destructive commands without your explicit manual verification.\\nDisabled: Allows the agent to silently delete or overwrite files, which could lead to accidental data loss.
 Enabled: Essential for local AI workflows. Allows the container to communicate with services like Ollama on your Mac.\\nDisabled: Strictly isolates the container from host services, preventing the use of local LLM models and bridges.
 Enabled: Allows the agent to drive a browser (tabs, navigate, snapshot) for web automation and testing.\\nDisabled: Browser tool is disabled; agent cannot control a browser.
@@ -290,12 +290,14 @@ Enabled: Allows elevated host exec and other high-privilege tools; required for 
 Enabled: Enables gateway hooks for automation and custom event handling.\\nDisabled: Hooks are disabled; no custom hook handlers run (default for minimal attack surface).
 Enabled: Hardens the container by preventing process privilege escalation and disabling all standard sudo-based exploits.\\nDisabled: Runs with standard container isolation, which may allow certain administrative operations or privilege gains.
 Enabled: Ensures your OpenClaw gateway is always available by automatically restarting the container after a system reboot.\\nDisabled: The container remains stopped after a reboot and must be manually started via the terminal for each use.
+Enabled: Restricts agent file access strictly to the local workspace folder for maximum data safety.\\nDisabled: Grants agent access to your entire user home directory, exposing personal files and sensitive keys.
 Enabled: Drops all Linux kernel capabilities to provide the highest level of container isolation against zero-day exploits.\\nDisabled: Uses standard Docker capability defaults, providing more flexibility for complex system-level agent tasks.
 Enabled: Completely disconnects the container from all external networks for maximum privacy and air-gapped security.\\nDisabled: Standard internet access is enabled, allowing the agent to perform web research and download updates.
 Enabled: Protects your skills folder from any accidental or malicious modification by the agent.\\nDisabled: Allows the agent to self-update, modify its own skills, and manage files within the skills folder.
 Enabled: Grants the agent direct control over your Docker socket, allowing it to manage other containers (God Mode).\\nDisabled: Strict confinement. The agent is locked inside its own container and cannot see or control other Docker services."
 SEC_OPTIONS="$SEC_OPTIONS_FULL"
 SEC_DESCRIPTIONS="$SEC_DESCRIPTIONS_FULL"
+# Always use config.yaml as checklist defaults when present (config wins over any image/default)
 [ -f "$PROJECT_DIR/config.yaml" ] && load_security_defaults_from_config "$PROJECT_DIR/config.yaml"
 checklist_tui "Security Settings" "$SEC_OPTIONS" "$SEC_DESCRIPTIONS" "" "$(sec_opts_for_checklist)" "SEC_OPTS" "true" 1 0
 

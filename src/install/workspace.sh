@@ -94,7 +94,7 @@ PY
     _ws_lines=$((_ws_lines + 1))
     [ -f "$PROJECT_DIR/docker-compose.yml" ] && success "docker-compose.yml" || warn "docker-compose.yml missing"
     _ws_lines=$((_ws_lines + 1))
-    [ -f "$PROJECT_DIR/.env" ] && success ".env secrets file exists" || warn ".env secrets file missing"
+    [ -f "$PROJECT_DIR/.env.sensitive" ] && success ".env.sensitive (secrets) exists" || warn ".env.sensitive (secrets) missing"
     _ws_lines=$((_ws_lines + 1))
 
     mkdir -p "$PROJECT_DIR/skills" "${_oc_base}/logs" "${_oc_base}/workspace"

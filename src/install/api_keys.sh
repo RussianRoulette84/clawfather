@@ -29,10 +29,9 @@ run_api_keys_config() {
     for i in "${!_key_arr[@]}"; do
         key_name="${_key_arr[$i]}"
         label="${_label_arr[$i]}"
-        eval "current_val=\"\${$key_name:-}\""
-
-        if [ -z "$current_val" ]; then
-            DETECTED=$(scan_for_key "$key_name" 2>/dev/null) || true
+        current_val=""
+        if [ -f "$PROJECT_DIR/.env.sensitive" ]; then
+            DETECTED=$(scan_for_key "$key_name" "$PROJECT_DIR/.env.sensitive" 2>/dev/null) || true
             [ -n "$DETECTED" ] && current_val="${DETECTED%|*}"
         fi
 
@@ -45,14 +44,14 @@ run_api_keys_config() {
         fi
     done
 
-    [ ! -f "$PROJECT_DIR/.env" ] && { cp "${PROJECT_DIR}/.env.example" "$PROJECT_DIR/.env" 2>/dev/null || touch "$PROJECT_DIR/.env"; } || true
+    [ ! -f "$PROJECT_DIR/.env.sensitive" ] && { cp "${PROJECT_DIR}/.env.sensitive.example" "$PROJECT_DIR/.env.sensitive" 2>/dev/null || touch "$PROJECT_DIR/.env.sensitive"; } || true
     for key_name in ANTHROPIC_API_KEY GEMINI_API_KEY ZAI_API_KEY GITHUB_TOKEN; do
         eval "val=\"\${$key_name:-}\""
         [ -z "$val" ] && continue
-        if grep -q "^${key_name}=" "$PROJECT_DIR/.env" 2>/dev/null; then
-            sed_inplace "s|^${key_name}=.*|${key_name}=$val|" "$PROJECT_DIR/.env" || true
+        if grep -q "^${key_name}=" "$PROJECT_DIR/.env.sensitive" 2>/dev/null; then
+            sed_inplace "s|^${key_name}=.*|${key_name}=$val|" "$PROJECT_DIR/.env.sensitive" || true
         else
-            echo "${key_name}=$val" >> "$PROJECT_DIR/.env"
+            echo "${key_name}=$val" >> "$PROJECT_DIR/.env.sensitive"
         fi
     done
 

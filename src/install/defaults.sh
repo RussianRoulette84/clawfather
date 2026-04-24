@@ -76,7 +76,7 @@ fi
 case "${GATEWAY_BIND_PREF}" in lan) GATEWAY_BIND_DEFAULT_INDEX=0 ;; loopback) GATEWAY_BIND_DEFAULT_INDEX=1 ;; tailscale) GATEWAY_BIND_DEFAULT_INDEX=2 ;; auto) GATEWAY_BIND_DEFAULT_INDEX=3 ;; custom) GATEWAY_BIND_DEFAULT_INDEX=4 ;; *) GATEWAY_BIND_DEFAULT_INDEX=4; GATEWAY_BIND_CUSTOM_IP="${GATEWAY_BIND_PREF}" ;; esac
 [ -n "$_ci_img" ] && DOCKER_IMAGE_SEL="${_ci_img}" || true
 
-# Security options from config (1=Sandbox 2=Root 3=Safe 4=Bridge 5=Browser 6=Tools 7=Hooks 8=NoNewPrivs 9=AutoStart 10=Paranoid 11=Offline 12=ReadOnly 13=God)
+# Security options from config; display order 1-based: 1=Root 2=Safe 3=Bridge 4=Browser 5=Tools 6=Hooks 7=NoNewPrivs 8=AutoStart 9=Sandbox 10=Paranoid 11=Offline 12=ReadOnly 13=God
 load_security_defaults_from_config() {
     local cfg="${1:-}"
     [ ! -f "$cfg" ] && return
@@ -86,44 +86,71 @@ load_security_defaults_from_config() {
             current == section && $0 ~ key ":" {
                 sub(/^[^:]+:[ \t]*/, "");
                 sub(/[ \t#].*$/, "");
-                gsub(/^["\047]|["\047]$/, "");
+                gsub(/^["\047 \t]+|["\047 \t]+$/, "");
                 print;
                 exit
             }
         ' "$cfg" 2>/dev/null || true
     }
-    _cb() { [ "$(_cv_local "security" "$1")" = "true" ] && echo 1 || echo 0; }
+    _cb() { local v="$(_cv_local "security" "$1")"; v="${v// /}"; [ "$v" = "true" ] && echo 1 || echo 0; }
     local _sec_sandbox _sec_root _sec_safe _sec_bridge _sec_browser _sec_tools _sec_hooks _sec_nnp _sec_auto _sec_paranoid _sec_offline _sec_ro _sec_god
     _sec_sandbox=$(_cb "sandbox_mode"); _sec_root=$(_cb "root_mode"); _sec_safe=$(_cb "safe_mode"); _sec_bridge=$(_cb "bridge_enabled")
     _sec_browser=$(_cb "browser_control"); _sec_tools=$(_cb "tools_elevated"); _sec_hooks=$(_cb "hooks_enabled"); _sec_nnp=$(_cb "no_new_privs")
     _sec_auto=$(_cb "auto_start"); _sec_paranoid=$(_cb "paranoid_mode"); _sec_offline=$(_cb "networking_offline"); _sec_ro=$(_cb "read_only_mounts"); _sec_god=$(_cb "god_mode")
     local _opts=()
-    [ "$_sec_sandbox" = "1" ] && _opts+=(1); [ "$_sec_root" = "1" ] && _opts+=(2); [ "$_sec_safe" = "1" ] && _opts+=(3); [ "$_sec_bridge" = "1" ] && _opts+=(4)
-    [ "$_sec_browser" = "1" ] && _opts+=(5); [ "$_sec_tools" = "1" ] && _opts+=(6); [ "$_sec_hooks" = "1" ] && _opts+=(7); [ "$_sec_nnp" = "1" ] && _opts+=(8)
-    [ "$_sec_auto" = "1" ] && _opts+=(9); [ "$_sec_paranoid" = "1" ] && _opts+=(10); [ "$_sec_offline" = "1" ] && _opts+=(11); [ "$_sec_ro" = "1" ] && _opts+=(12); [ "$_sec_god" = "1" ] && _opts+=(13)
-    if [ ${#_opts[@]} -gt 0 ]; then
-        SEC_OPTS_DEFAULT=$(IFS=,; echo "${_opts[*]}")
-    fi
+    [ "$_sec_root" = "1" ] && _opts+=(1); [ "$_sec_safe" = "1" ] && _opts+=(2); [ "$_sec_bridge" = "1" ] && _opts+=(3); [ "$_sec_browser" = "1" ] && _opts+=(4)
+    [ "$_sec_tools" = "1" ] && _opts+=(5); [ "$_sec_hooks" = "1" ] && _opts+=(6); [ "$_sec_nnp" = "1" ] && _opts+=(7); [ "$_sec_auto" = "1" ] && _opts+=(8); [ "$_sec_sandbox" = "1" ] && _opts+=(9)
+    [ "$_sec_paranoid" = "1" ] && _opts+=(10); [ "$_sec_offline" = "1" ] && _opts+=(11); [ "$_sec_ro" = "1" ] && _opts+=(12); [ "$_sec_god" = "1" ] && _opts+=(13)
+    SEC_OPTS_DEFAULT=$(IFS=,; echo "${_opts[*]}")
+    SEC_OPTS_FROM_CONFIG=1
 }
 
-SEC_OPTS_DEFAULT="1,3,4,5,7,8"
+SEC_OPTS_DEFAULT="1,2,3,4,6,7"
 [ -f "$_CONFIG" ] && load_security_defaults_from_config "$_CONFIG"
 
-# Convert 1-based SEC_OPTS_DEFAULT to 0-based for checklist_tui.
-# When SEC_ROOT_HIDDEN=true (fourplayers/openclaw), checklist has 12 options (no Root); drop option 2 and renumber.
+# Convert 1-based SEC_OPTS_DEFAULT to 0-based for checklist_tui. Display order: 1=Root 2=Safe ... 8=AutoStart 9=Sandbox ... 13=God
+# When SEC_ROOT_HIDDEN=true (fourplayers), Root is forced on in apply_security_settings; always include index 0 (Root) so checklist shows it checked.
+# Return comma-separated 0-based indices for hooks checklist. Default: 1,2,3,4 (all 4 hooks enabled).
+hooks_defaults_for_checklist() {
+    local cfg="${PROJECT_DIR:-${PROJECT_ROOT:-}}/config.yaml"
+    [ -n "${1:-}" ] && cfg="$1"
+    [ ! -f "$cfg" ] && { echo "1,2,3,4"; return; }
+    local _raw
+    _raw=$(awk -v section="hooks" -v key="entries" '
+        /^[a-zA-Z_][a-zA-Z0-9_]*:/ { gsub(/:.*/,""); current=$0 }
+        current==section && $0~key":" { gsub(/^[^:]+:[ \t]*/,""); gsub(/[ \t#].*$/,""); gsub(/["\047]/,""); print; exit }
+    ' "$cfg" 2>/dev/null)
+    [ -z "$_raw" ] && { echo "1,2,3,4"; return; }
+    local out=""
+    local h
+    for h in $(echo "$_raw" | tr ',' ' '); do
+        case "$h" in
+            boot-md) out="${out}1," ;;
+            bootstrap-extra-files) out="${out}2," ;;
+            command-logger) out="${out}3," ;;
+            session-memory) out="${out}4," ;;
+        esac
+    done
+    [ -z "$out" ] && out="1,2,3,4" || out="${out%,}"
+    echo "$out"
+}
+
 sec_opts_for_checklist() {
-    local def="${SEC_OPTS_DEFAULT:-1,3,4,5,7,8}"
-    if [ "${SEC_ROOT_HIDDEN:-false}" = "true" ]; then
-        # 12-option list: 1=Sandbox 2=Safe 3=Bridge 4=Browser 5=Tools 6=Hooks 7=NoNewPrivs 8=AutoStart 9=Paranoid 10=Offline 11=ReadOnly 12=God
-        # From 13-option 1-based: remove 2 (Root); for n>2 use n-1 to get 12-option 1-based; then to 0-based subtract 1
-        echo "$def" | tr ',' '\n' | while read -r n; do
-            [ "$n" = "2" ] && continue
-            if [ -n "$n" ] && [ "$n" -ge 1 ] 2>/dev/null; then
-                _onebased=$((n > 2 ? n - 1 : n))
-                echo $((_onebased - 1))
-            fi
-        done | tr '\n' ',' | sed 's/,$//'
+    local def
+    if [ "${SEC_OPTS_FROM_CONFIG:-0}" = "1" ]; then
+        def="${SEC_OPTS_DEFAULT}"
     else
-        echo "$def" | tr ',' '\n' | while read -r n; do echo $((n - 1)); done | tr '\n' ',' | sed 's/,$//'
+        def="${SEC_OPTS_DEFAULT:-1,2,3,4,6,7}"
     fi
+    local out
+    out="$(echo "$def" | tr ',' '\n' | while read -r n; do
+        if [ -n "$n" ] && [ "$n" -ge 1 ] 2>/dev/null; then
+            echo $((n - 1))
+        fi
+    done | tr '\n' ',' | sed 's/,$//')"
+    if [ "${SEC_ROOT_HIDDEN:-false}" = "true" ]; then
+        # fourplayers: ensure Root (0) is in the list so it shows as checked
+        case ",$out," in *,0,*) ;; *) out="0${out:+,$out}" ;; esac
+    fi
+    echo "$out"
 }

@@ -64,7 +64,25 @@ run_phase_health_smoke() {
         printf "%b│%b  %s\n" "$accent_color" "$RESET" "Logs: docker compose logs -f $GATEWAY_SERVICE   |   Shell: docker compose exec -it $GATEWAY_SERVICE sh"
         printf "%b│%b\n" "$accent_color" "$RESET"
         sleep 2
-        SMOKE_CMD="node dist/index.js agent --agent main --timeout 240 --message \"Reply with 'We are good bro', nothing else\""
+        SMOKE_CMD="$OPENCLAW_CMD agent --agent main --timeout 240 --message \"Reply with 'We are good bro', nothing else\""
         run_setup_phase "Smoke test: OpenClaw reply with OK" "$SMOKE_CMD" 250
+    fi
+
+    _upd_acc=$(get_accent)
+    _upd_prompt="Update OpenClaw now?  ${_upd_acc}${DIM}openclaw update in container${RESET}"
+    ask_yes_no_tui "$_upd_prompt" "n" "RUN_OPENCLAW_UPDATE" 1 0 1
+    if [[ "$RUN_OPENCLAW_UPDATE" =~ ^[Yy]$ ]]; then
+        _upd_cmd="docker exec -e HOME=\"${CONTAINER_HOME:-/home/node}\" -e OPENCLAW_BIND=\"${GATEWAY_BIND:-lan}\" \"$CONTAINER_NAME\" $OPENCLAW_CMD update"
+        print_debug_cmd "$TUI_PREFIX" "$_upd_cmd"
+        info "Running openclaw update in container..."
+        set +e
+        docker exec -e HOME="${CONTAINER_HOME:-/home/node}" -e OPENCLAW_BIND="${GATEWAY_BIND:-lan}" "$CONTAINER_NAME" $OPENCLAW_CMD update
+        _upd_rc=$?
+        set -e
+        if [ "${_upd_rc:-0}" -eq 0 ]; then
+            success "OpenClaw update completed."
+        else
+            warn "OpenClaw update exited with code ${_upd_rc}. Check output above."
+        fi
     fi
 }

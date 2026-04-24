@@ -5,33 +5,19 @@
 # API Key Scanner
 scan_for_key() {
     local key_name="$1"
+    local env_file="${2:-}"
     local found_key=""
     local source_file=""
 
-    # 1. Check current environment variables
-    if [ -n "${!key_name}" ]; then
-        found_key="${!key_name}"
-        source_file="Current Environment"
+    [ -z "$env_file" ] || [ ! -f "$env_file" ] && return
+
+    local match
+    match=$(grep -E "^${key_name}=.+" "$env_file" 2>/dev/null | tail -n 1 | sed "s/^${key_name}=//")
+    if [ -n "$match" ]; then
+        found_key="$match"
+        source_file="$env_file"
     fi
 
-    # 2. Check common shell config files if not found
-    if [ -z "$found_key" ]; then
-        local config_files=("$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zprofile" "$HOME/.config/fish/config.fish")
-        for file in "${config_files[@]}"; do
-            if [ -f "$file" ]; then
-                # Use robust regex to capture export VAR="val" or VAR=val
-                # Use tail to get the LAST occurrence (override)
-                local match=$(grep -E "export[[:space:]]+${key_name}=['\"]?[a-zA-Z0-9._\-]+['\"]?" "$file" | tail -n 1 | sed -E "s/.*${key_name}=['\"]?([^'\"]+)['\"]?.*/\1/")
-                if [ -n "$match" ]; then
-                    found_key="$match"
-                    source_file="$file"
-                    break
-                fi
-            fi
-        done
-    fi
-
-    # Return result if found
     if [ -n "$found_key" ]; then
         printf "%s|%s" "$found_key" "$source_file"
     fi

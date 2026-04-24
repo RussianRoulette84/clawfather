@@ -126,6 +126,9 @@ run_phase_config() {
     _ph2_do "gateway.trustedProxies" "$_ph2_trusted_display" "docker exec -u $_ph2_u -e HOME=$_ph2_home -e OPENCLAW_BIND=${GATEWAY_BIND:-lan} \"$CONTAINER_NAME\" $OPENCLAW_CMD config set gateway.trustedProxies --json '[...]'" "" "${_ph2_exec_base[@]}" config set gateway.trustedProxies --json "$_ph2_trusted_json"
     _ph2_do "agents.defaults.model" "$_primary" "docker exec -u $_ph2_u -e HOME=$_ph2_home -e OPENCLAW_BIND=${GATEWAY_BIND:-lan} \"$CONTAINER_NAME\" $OPENCLAW_CMD config set agents.defaults.model --json '...'" "" "${_ph2_exec_base[@]}" config set agents.defaults.model --json "$AGENTS_MODEL_JSON"
     _ph2_do "agents.list" "[3 agents]" "docker exec -u $_ph2_u -e HOME=$_ph2_home -e OPENCLAW_BIND=${GATEWAY_BIND:-lan} \"$CONTAINER_NAME\" $OPENCLAW_CMD config set agents.list --json '...'" "" "${_ph2_exec_base[@]}" config set agents.list --json "$AGENTS_LIST_JSON"
+    if [ "${HOOKS_ENABLED:-false}" = "true" ]; then
+        _ph2_do "hooks.internal.enabled" "true" "docker exec -u $_ph2_u -e HOME=$_ph2_home -e OPENCLAW_BIND=${GATEWAY_BIND:-lan} \"$CONTAINER_NAME\" $OPENCLAW_CMD config set hooks.internal.enabled true" "" "${_ph2_exec_base[@]}" config set hooks.internal.enabled true
+    fi
     _ph2_port="${_cfg_port:-18789}"
     _ph2_ips="http://localhost:$_ph2_port"
     if [[ "${GATEWAY_BIND:-lan}" == "lan" ]] || [[ "${GATEWAY_BIND:-lan}" == "0.0.0.0" ]] || [[ "${GATEWAY_BIND:-lan}" =~ ^[0-9.]+$ ]]; then

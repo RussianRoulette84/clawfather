@@ -1,10 +1,9 @@
 # Environment variables (secrets, API keys — never commit)
 .env
+.env.sensitive
 .env.*
 !.env.example
-
-# Install-generated (paths, user choices)
-.env.install
+!.env.sensitive.example
 
 # Private dir
 private/

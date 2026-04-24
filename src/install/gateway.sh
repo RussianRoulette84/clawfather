@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- Gateway Configuration: config.yaml, .env.install, .env (token only) ---
+# --- Gateway Configuration: config.yaml, .env (install + .env.sensitive merged), .env.sensitive (secrets) ---
 # Requires: PROJECT_DIR, SRC_DIR, GATEWAY_*, ROOT_MODE, etc., lib/utils.sh (sed_inplace)
 
 # Read a simple YAML value (section.key or section.sub.key)
@@ -95,7 +95,7 @@ to_config_path() {
 }
 
 # Return Compose project name from OpenClaw config dir path (basename, sanitized for [a-z0-9_.-]).
-# Used by executor for wipe check and by generate_env_install for .env.install.
+# Used by executor for wipe check and by generate_env for .env.
 get_compose_project_name() {
     local _dir="${1:-}"
     [[ "$_dir" == ~* ]] && _dir="${_dir/#\~/$HOME}"
@@ -110,9 +110,29 @@ get_compose_project_name() {
     fi
 }
 
-# Update (or insert) a simple "section.key: value" while preserving comments.
+# Merge .env.sensitive (API keys, token) into .env. .env = install config + sensitive, used by Docker.
+merge_env_sensitive_into_env() {
+    local _env="$PROJECT_DIR/.env"
+    local _sensitive="$PROJECT_DIR/.env.sensitive"
+    [ ! -f "$_env" ] && return
+    [ ! -f "$_sensitive" ] && return
+    local _tmp="$PROJECT_DIR/.env.merged.tmp"
+    awk '
+        FNR==NR {
+            if ($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=/) { key=$0; sub(/=.*/, "", key); sensitive[key]=$0 }
+            next
+        }
+        {
+            if ($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=/) { key=$0; sub(/=.*/, "", key); if (key in sensitive) { print sensitive[key]; seen[key]=1; next }; seen[key]=1 }
+            print
+        }
+        END { for (k in sensitive) if (!(k in seen)) print sensitive[k] }
+    ' "$_sensitive" "$_env" > "$_tmp" && mv "$_tmp" "$_env"
+}
+
+# Update (or insert) a simple "section.key: value" while preserving comments and alignment.
 # - Preserves all unrelated lines as-is (including comments/blank lines).
-# - If the key exists, replaces only the value portion and keeps any inline comment.
+# - If the key exists: replaces only the value, keeps inline comment and padding (structure unchanged).
 # - If the section/key is missing, inserts it.
 yaml_upsert_section_kv() {
     local file="$1" section="$2" key="$3" value="$4"
@@ -133,10 +153,19 @@ yaml_upsert_section_kv() {
             }
         }
         {
-            if (in_section && $0 ~ ("^  " key ":[ \t]*")) {
-                c = ""
-                if (match($0, /[ \t]+#/)) { c = substr($0, RSTART) }
-                print "  " key ": " val c
+            if (in_section && match($0, "^  " key ":[ \t]*")) {
+                kp = "  " key ": "
+                pad_between = substr($0, RSTART + length(kp), RLENGTH - length(kp))
+                rest = substr($0, RSTART + RLENGTH)
+                comment_part = ""
+                value_plus = rest
+                if (match(rest, /[ \t]+#/)) {
+                    comment_part = substr(rest, RSTART)
+                    value_plus = substr(rest, 1, RSTART - 1)
+                }
+                pad_before = ""
+                if (match(value_plus, /[ \t]*$/)) { pad_before = substr(value_plus, RSTART) }
+                print "  " key ": " pad_between val pad_before comment_part
                 key_done = 1
                 next
             }
@@ -398,25 +427,26 @@ OLLAMA
         yaml_upsert_section_kv "$_cfg" "ollama" "base_url" "$_ollama_url"
     fi
 
-    # Replace entire security section with canonical order and comments (emit_security_block)
-    local _sec_tmp _sec_block
-    _sec_tmp="$(mktemp 2>/dev/null || echo "/tmp/cfg_sec_$$")"
-    _sec_block="$(mktemp 2>/dev/null || echo "/tmp/cfg_secblk_$$")"
-    emit_security_block > "$_sec_block"
-    awk -v block="$_sec_block" '
-        /^security:/ { replaced = 1; in_sec = 1; while ((getline line < block) > 0) print line; close(block); next }
-        in_sec && /^[^ ]/ { in_sec = 0 }
-        in_sec { next }
-        { print }
-        END { if (!replaced) { print ""; while ((getline line < block) > 0) print line; close(block) } }
-    ' "$_cfg" > "$_sec_tmp" && mv "$_sec_tmp" "$_cfg"
-    rm -f "$_sec_tmp" "$_sec_block" 2>/dev/null || true
+    # Upsert security keys in place so user comments and structure are preserved
+    yaml_upsert_section_kv "$_cfg" "security" "sandbox_mode" "${SANDBOX_MODE:-false}"
+    yaml_upsert_section_kv "$_cfg" "security" "root_mode" "${ROOT_MODE:-false}"
+    yaml_upsert_section_kv "$_cfg" "security" "safe_mode" "${SAFE_MODE:-true}"
+    yaml_upsert_section_kv "$_cfg" "security" "bridge_enabled" "${BRIDGE_ENABLED:-true}"
+    yaml_upsert_section_kv "$_cfg" "security" "no_new_privs" "${NO_NEW_PRIVS:-true}"
+    yaml_upsert_section_kv "$_cfg" "security" "browser_control" "${BROWSER_CONTROL:-true}"
+    yaml_upsert_section_kv "$_cfg" "security" "tools_elevated" "${TOOLS_ELEVATED:-true}"
+    yaml_upsert_section_kv "$_cfg" "security" "hooks_enabled" "${HOOKS_ENABLED:-false}"
+    yaml_upsert_section_kv "$_cfg" "security" "read_only_mounts" "${READ_ONLY_MOUNTS:-false}"
+    yaml_upsert_section_kv "$_cfg" "security" "networking_offline" "${NETWORKING_OFFLINE:-false}"
+    yaml_upsert_section_kv "$_cfg" "security" "paranoid_mode" "${PARANOID_MODE:-false}"
+    yaml_upsert_section_kv "$_cfg" "security" "auto_start" "${AUTO_START:-false}"
+    yaml_upsert_section_kv "$_cfg" "security" "god_mode" "${GOD_MODE:-false}"
 }
 
-# Generate .env.install from config.yaml
-generate_env_install() {
+# Generate .env from config.yaml (install config), then merge .env.sensitive (API keys, token).
+generate_env() {
     local _cfg="$PROJECT_DIR/config.yaml"
-    local _out="$PROJECT_DIR/.env.install"
+    local _out="$PROJECT_DIR/.env"
     [ ! -f "$_cfg" ] && return
     local _port _bridge _bind _img _user _mirror _proj _dproj _dbase _dws _cfg_dir _ws_dir _skills_dir _vol _net _ollama
     _port="$(get_yaml_val "$_cfg" "gateway.port" 2>/dev/null)"
@@ -530,7 +560,7 @@ generate_env_install() {
         echo "OPENCLAW_DOCKER_BASE=$_dbase"
         echo "OPENCLAW_DOCKER_WORKSPACE=$_dws"
         echo "OPENCLAW_DOCKER_HOME=$_container_home"
-        # Only set OLLAMA_BASE_URL when user chose local LLM; when No, write empty so .env.install overrides .env and container skips discovery
+        # Only set OLLAMA_BASE_URL when user chose local LLM; when No, leave empty so container skips discovery
         if [ -n "$_ollama" ]; then
             echo "OLLAMA_BASE_URL=$_ollama"
             echo "OLLAMA_API_KEY=${OLLAMA_API_KEY:-ollama-local}"
@@ -541,6 +571,7 @@ generate_env_install() {
         echo "OPENCLAW_VOL_MODE=$_vol"
         echo "OPENCLAW_NETWORK_MODE=$_net"
     } > "$_out"
+    merge_env_sensitive_into_env
     # When local LLM not used, omit Ollama env from container so the app never runs Ollama discovery
     local _dc="$PROJECT_DIR/docker-compose.yml"
     if [ -f "$_dc" ]; then
@@ -560,7 +591,7 @@ run_gateway_config() {
     fi
     GATEWAY_SECRET="${GATEWAY_TOKEN:-$GATEWAY_PASSWORD}"
 
-    [ ! -f "$PROJECT_DIR/.env" ] && cp "${PROJECT_DIR}/.env.example" "$PROJECT_DIR/.env" 2>/dev/null
+    [ ! -f "$PROJECT_DIR/.env.sensitive" ] && { cp "${PROJECT_DIR}/.env.sensitive.example" "$PROJECT_DIR/.env.sensitive" 2>/dev/null || touch "$PROJECT_DIR/.env.sensitive"; }
     OPENCLAW_WORKSPACE_DIR_ABS="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)"
     # Resolve config dir (before mkdir) so we create the chosen path, not project .openclaw
     _proj_abs="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)"
@@ -625,16 +656,16 @@ run_gateway_config() {
     OPENCLAW_NETWORK_MODE="$(get_yaml_val "$PROJECT_DIR/config.yaml" "docker.network_mode" 2>/dev/null)"
     [ -z "$OPENCLAW_NETWORK_MODE" ] && OPENCLAW_NETWORK_MODE="bridge"
 
-    # Only write OPENCLAW_GATEWAY_TOKEN to .env (secrets stay in .env)
-    if grep -q "^OPENCLAW_GATEWAY_TOKEN=" "$PROJECT_DIR/.env" 2>/dev/null; then
-        sed_inplace "s|^OPENCLAW_GATEWAY_TOKEN=.*|OPENCLAW_GATEWAY_TOKEN=$GATEWAY_SECRET|" "$PROJECT_DIR/.env"
+    # Write OPENCLAW_GATEWAY_TOKEN to .env.sensitive (merged into .env by generate_env)
+    if grep -q "^OPENCLAW_GATEWAY_TOKEN=" "$PROJECT_DIR/.env.sensitive" 2>/dev/null; then
+        sed_inplace "s|^OPENCLAW_GATEWAY_TOKEN=.*|OPENCLAW_GATEWAY_TOKEN=$GATEWAY_SECRET|" "$PROJECT_DIR/.env.sensitive"
     else
-        echo "OPENCLAW_GATEWAY_TOKEN=$GATEWAY_SECRET" >> "$PROJECT_DIR/.env"
+        echo "OPENCLAW_GATEWAY_TOKEN=$GATEWAY_SECRET" >> "$PROJECT_DIR/.env.sensitive"
     fi
 
-    # Write config.yaml and generate .env.install
+    # Write config.yaml and generate .env (install config + merge .env.sensitive)
     write_config
-    generate_env_install
+    generate_env
 
     # Keep docker-compose sed for MIRROR_PROJECTS / LOCAL_PROJECTS_DIR
     local _dc="$PROJECT_DIR/docker-compose.yml"

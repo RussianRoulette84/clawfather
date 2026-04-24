@@ -6,7 +6,7 @@ run_docker_launch() {
     cd "$PROJECT_DIR" || exit 1
     ensure_docker_running || exit 1
 
-    [ -f "$PROJECT_DIR/.env.install" ] && set -a && . "$PROJECT_DIR/.env.install" && set +a
+    [ -f "$PROJECT_DIR/.env" ] && set -a && . "$PROJECT_DIR/.env" && set +a
 
     export COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
     export COMPOSE_PROJECT_NAME="$(get_compose_project_name "${OPENCLAW_CONFIG_DIR:-${OPENCLAW_CONFIG_DIR_DEFAULT:-$HOME/.openclaw}}")"
@@ -131,6 +131,15 @@ run_docker_launch() {
     CONTAINER_HOME="${CONTAINER_HOME:-/home/node}"
 
     if docker compose ps | grep -q "Up"; then
+        # Copy skills into gateway container (no bind mount)
+        _skills_src="${OPENCLAW_SKILLS_DIR:-./skills}"
+        [[ "$_skills_src" == ~* ]] && _skills_src="${_skills_src/#\~/$HOME}"
+        [[ "$_skills_src" != /* ]] && _skills_src="$PROJECT_DIR/$_skills_src"
+        _skills_dest="${OPENCLAW_DOCKER_BASE:-/home/node/.openclaw}/"
+        if [ -d "$_skills_src" ]; then
+            docker compose cp "$_skills_src" "$GATEWAY_SERVICE:$_skills_dest" 2>/dev/null || true
+        fi
+
         _docker_lines=$((_docker_lines + 1))
         success "CLAWFATHER executed Docker! 🔫"
         printf "\033[${_docker_lines}A\r\033[K"
